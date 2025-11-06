@@ -233,8 +233,8 @@
 
     <!-- Twilio Voice SDK v2 -->
     <!-- Note: Voice SDK requires HTTPS or localhost -->
-    <!-- Using official Twilio Voice SDK CDN - updated URL to fix ERR_BLOCKED_BY_ORB -->
-    <script src="https://sdk.twilio.com/js/client/releases/2.0.0/twilio.min.js"></script>
+    <!-- Using SDK loader with multiple fallbacks -->
+    <script src="/twilio-sync.min.js"></script>
 
     <script>
         // Wait for Twilio SDK to load
