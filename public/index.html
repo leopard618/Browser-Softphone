@@ -573,66 +573,90 @@
                     addLog('Device not initialized, initializing now...', 'info');
                     await initializeDevice();
                     
-                    // Wait for device to be ready (with longer timeout)
+                    // Wait for device to be registered or ready
                     addLog('Waiting for device to be ready...', 'info');
                     addLog(`Current device state: ${device.state}`, 'info');
                     await new Promise((resolve, reject) => {
                         const timeout = setTimeout(() => {
-                            addLog(`Device still not ready. Current state: ${device.state}`, 'error');
-                            addLog('This might indicate a network or token issue.', 'error');
-                            addLog('Check browser console (F12) for WebSocket connection errors.', 'error');
-                            reject(new Error(`Device did not become ready within 30 seconds. Current state: ${device.state}`));
-                        }, 30000); // Increased to 30 seconds
+                            // If device is registered, that's good enough - proceed
+                            if (device.state === 'registered') {
+                                addLog('Device is registered - ready to make calls', 'success');
+                                resolve();
+                            } else {
+                                addLog(`Device still not ready. Current state: ${device.state}`, 'error');
+                                addLog('This might indicate a network or token issue.', 'error');
+                                addLog('Check browser console (F12) for WebSocket connection errors.', 'error');
+                                reject(new Error(`Device did not become ready within 30 seconds. Current state: ${device.state}`));
+                            }
+                        }, 30000);
                         
-                        if (device.state === 'ready') {
+                        // Device is ready if it's "ready" or "registered"
+                        if (device.state === 'ready' || device.state === 'registered') {
                             clearTimeout(timeout);
-                            addLog('Device is already ready', 'success');
+                            addLog(`Device is ${device.state} - ready to make calls`, 'success');
                             resolve();
                         } else {
-                            // Log state changes while waiting
-                            const stateLogInterval = setInterval(() => {
-                                if (device && device.state) {
-                                    addLog(`Waiting... Device state: ${device.state}`, 'info');
-                                }
-                            }, 5000);
-                            
-                            device.once('ready', () => {
-                                clearInterval(stateLogInterval);
+                            // Wait for either ready or registered event
+                            const onReady = () => {
                                 clearTimeout(timeout);
                                 addLog('Device is now ready', 'success');
                                 resolve();
-                            });
+                            };
+                            
+                            const onRegistered = () => {
+                                clearTimeout(timeout);
+                                addLog('Device is registered - ready to make calls', 'success');
+                                resolve();
+                            };
+                            
+                            device.once('ready', onReady);
+                            device.once('registered', onRegistered);
                             
                             device.once('error', (error) => {
-                                clearInterval(stateLogInterval);
+                                device.removeListener('ready', onReady);
+                                device.removeListener('registered', onRegistered);
                                 clearTimeout(timeout);
                                 addLog(`Device error while waiting: ${error.message}`, 'error');
                                 reject(error);
                             });
                             
                             device.once('offline', () => {
-                                clearInterval(stateLogInterval);
+                                device.removeListener('ready', onReady);
+                                device.removeListener('registered', onRegistered);
                                 clearTimeout(timeout);
                                 reject(new Error('Device went offline while waiting'));
                             });
                         }
                     });
-                } else if (device.state !== 'ready') {
-                    addLog(`Device state: ${device.state}, waiting for ready...`, 'info');
+                } else if (device.state !== 'ready' && device.state !== 'registered') {
+                    addLog(`Device state: ${device.state}, waiting for registered or ready...`, 'info');
                     await new Promise((resolve, reject) => {
                         const timeout = setTimeout(() => {
-                            addLog(`Device still not ready. Current state: ${device.state}`, 'error');
-                            addLog('This might indicate a network or token issue.', 'error');
-                            addLog('Check browser console (F12) for WebSocket connection errors.', 'error');
-                            reject(new Error(`Device did not become ready within 30 seconds. Current state: ${device.state}`));
-                        }, 30000); // Increased to 30 seconds
+                            if (device.state === 'registered') {
+                                addLog('Device is registered - ready to make calls', 'success');
+                                resolve();
+                            } else {
+                                addLog(`Device still not ready. Current state: ${device.state}`, 'error');
+                                reject(new Error(`Device did not become ready within 30 seconds. Current state: ${device.state}`));
+                            }
+                        }, 30000);
                         
-                        device.once('ready', () => {
+                        const onReady = () => {
                             clearTimeout(timeout);
                             resolve();
-                        });
+                        };
+                        
+                        const onRegistered = () => {
+                            clearTimeout(timeout);
+                            resolve();
+                        };
+                        
+                        device.once('ready', onReady);
+                        device.once('registered', onRegistered);
                         
                         device.once('error', (error) => {
+                            device.removeListener('ready', onReady);
+                            device.removeListener('registered', onRegistered);
                             clearTimeout(timeout);
                             reject(error);
                         });
@@ -645,22 +669,7 @@
                     throw new Error(`Device is not ready. Current state: ${device.state}`);
                 }
                 
-                // If device is registered but not ready, wait a bit for it to become ready
-                if (device.state === 'registered') {
-                    addLog('Device is registered, waiting for ready state...', 'info');
-                    await new Promise((resolve) => {
-                        const timeout = setTimeout(() => {
-                            addLog('Device is registered but not ready yet - proceeding anyway', 'info');
-                            resolve();
-                        }, 2000);
-                        
-                        device.once('ready', () => {
-                            clearTimeout(timeout);
-                            addLog('Device is now ready!', 'success');
-                            resolve();
-                        });
-                    });
-                }
+                addLog(`Device is ${device.state} - ready to make calls`, 'success');
 
                 addLog(`Making call to ${phoneNumber}...`, 'info');
                 addLog(`Device state before connect: ${device.state}`, 'info');
