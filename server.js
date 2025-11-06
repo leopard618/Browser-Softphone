@@ -101,10 +101,15 @@ app.get('/token', (req, res) => {
     
     // VoiceGrant allows the client to make and receive calls
     const voiceGrant = new AccessToken.VoiceGrant(grantOptions);
+    
+    // Log grant options and grant object for debugging
+    console.log('[TOKEN] VoiceGrant options:', JSON.stringify(grantOptions));
+    console.log('[TOKEN] VoiceGrant toPayload:', JSON.stringify(voiceGrant.toPayload()));
+    
     token.addGrant(voiceGrant);
     
-    // Log grant options for debugging
-    console.log('[TOKEN] VoiceGrant options:', JSON.stringify(grantOptions));
+    // Verify grant was added
+    console.log('[TOKEN] Token grants after adding VoiceGrant:', JSON.stringify(token.grants || {}, null, 2));
     
     const jwt = token.toJwt();
     
@@ -113,28 +118,39 @@ app.get('/token', (req, res) => {
       const parts = jwt.split('.');
       if (parts.length === 3) {
         const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+        
+        // Log full payload structure for debugging
+        console.log('[TOKEN] Full token payload structure:', JSON.stringify(payload, null, 2));
+        console.log('[TOKEN] Payload grants:', JSON.stringify(payload.grants || {}, null, 2));
+        
         if (payload.grants && payload.grants.voice) {
           const outgoingAppSid = payload.grants.voice.outgoingApplicationSid;
           console.log('[TOKEN] Token includes VoiceGrant:', {
             outgoingApplicationSid: outgoingAppSid || 'MISSING',
             incomingAllow: payload.grants.voice.incomingAllow || false
           });
+          
+          // Check if it's in a different format
           if (!outgoingAppSid) {
             console.error('[TOKEN] ❌ ERROR: Token does NOT include outgoingApplicationSid!');
+            console.error('[TOKEN] VoiceGrant structure:', JSON.stringify(payload.grants.voice, null, 2));
             console.error('[TOKEN] Device will NOT be able to register without this!');
             console.error('[TOKEN] Check that TWIML_APP_SID is set correctly in Render environment variables');
             console.error('[TOKEN] Expected format: APxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
             console.error('[TOKEN] Current TWIML_APP_SID value:', OUTGOING_APP_SID || 'NOT SET');
+            console.error('[TOKEN] VoiceGrant options used:', JSON.stringify(grantOptions, null, 2));
           } else {
             console.log('[TOKEN] ✅ Token includes outgoingApplicationSid:', outgoingAppSid);
             console.log('[TOKEN] ✅ Device should be able to register and connect via WebSocket');
           }
         } else {
           console.error('[TOKEN] ❌ ERROR: Token does NOT include VoiceGrant!');
+          console.error('[TOKEN] Payload grants:', JSON.stringify(payload.grants || {}, null, 2));
         }
       }
     } catch (e) {
       console.warn('[TOKEN] Could not decode token for verification:', e.message);
+      console.warn('[TOKEN] Error details:', e);
     }
     
     console.log(`[TOKEN] ✅ Generated token successfully for identity: ${identity}`);
