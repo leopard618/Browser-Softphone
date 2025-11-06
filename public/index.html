@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twilio Browser Softphone</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .status.idle {
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .status.ready {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status.connected {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-call {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-call:hover:not(:disabled) {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-hangup {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-hangup:hover:not(:disabled) {
+            background: #c82333;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+        }
+
+        .btn-test {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-test:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .log {
+            margin-top: 30px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-left: 3px solid #667eea;
+            padding-left: 10px;
+        }
+
+        .log-entry.error {
+            border-left-color: #dc3545;
+            color: #dc3545;
+        }
+
+        .log-entry.success {
+            border-left-color: #28a745;
+            color: #28a745;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #0c5460;
+        }
+
+        .info-box strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📞 Twilio Browser Softphone</h1>
+        <p class="subtitle">Voice AI Agent Testing</p>
+
+        <div id="status" class="status idle">Status: Idle</div>
+
+        <div class="input-group">
+            <label for="phoneNumber">Phone Number to Call (E.164 format)</label>
+            <input 
+                type="text" 
+                id="phoneNumber" 
+                placeholder="+1234567890" 
+                value=""
+            >
+        </div>
+
+        <div class="button-group">
+            <button id="callBtn" class="btn-call">📞 Call</button>
+            <button id="hangupBtn" class="btn-hangup" disabled>📴 Hang Up</button>
+        </div>
+
+        <button id="testTokenBtn" class="btn-test" style="width: 100%; margin-top: 10px;">
+            🔑 Test Token
+        </button>
+
+        <div class="log" id="log"></div>
+    </div>
+
+    <!-- Twilio Voice SDK v2 -->
+    <!-- Note: Voice SDK requires HTTPS or localhost -->
+    <script src="https://media.twiliocdn.com/sdk/js/voice/releases/2.0.0/twilio.min.js"></script>
+
+    <script>
+        // Wait for Twilio SDK to load
+        function waitForTwilio(callback) {
+            if (typeof Twilio !== 'undefined') {
+                callback();
+            } else {
+                setTimeout(() => waitForTwilio(callback), 100);
+            }
+        }
+        let device = null;
+        let activeConnection = null;
+        const log = document.getElementById('log');
+        const status = document.getElementById('status');
+        const phoneInput = document.getElementById('phoneNumber');
+        const callBtn = document.getElementById('callBtn');
+        const hangupBtn = document.getElementById('hangupBtn');
+        const testTokenBtn = document.getElementById('testTokenBtn');
+
+        // Logging utility
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+            console.log(`[Twilio] ${message}`);
+        }
+
+        // Update status
+        function updateStatus(text, className) {
+            status.textContent = `Status: ${text}`;
+            status.className = `status ${className}`;
+        }
+
+        // Fetch access token from server
+        async function getToken() {
+            try {
+                addLog('Fetching access token...', 'info');
+                const response = await fetch('/token');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                addLog(`Token received for identity: ${data.identity}`, 'success');
+                return data.token;
+            } catch (error) {
+                addLog(`Error fetching token: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        // Test token endpoint
+        testTokenBtn.addEventListener('click', async () => {
+            try {
+                testTokenBtn.disabled = true;
+                testTokenBtn.textContent = 'Testing...';
+                const token = await getToken();
+                addLog('✅ Token test successful!', 'success');
+                updateStatus('Token Ready', 'ready');
+            } catch (error) {
+                addLog('❌ Token test failed!', 'error');
+                updateStatus('Token Error', 'error');
+            } finally {
+                testTokenBtn.disabled = false;
+                testTokenBtn.textContent = '🔑 Test Token';
+            }
+        });
+
+        // Initialize Twilio Device
+        async function initializeDevice() {
+            try {
+                // Wait for Twilio SDK to be loaded
+                await new Promise((resolve) => {
+                    if (typeof Twilio !== 'undefined') {
+                        resolve();
+                    } else {
+                        waitForTwilio(resolve);
+                    }
+                });
+
+                if (typeof Twilio === 'undefined') {
+                    throw new Error('Twilio SDK failed to load. Please check your internet connection and refresh the page.');
+                }
+
+                const token = await getToken();
+                
+                // Create new device instance
+                // Voice SDK v2 initialization
+                addLog('Initializing Twilio Device...', 'info');
+                device = new Twilio.Device(token, {
+                    debug: true,
+                    logLevel: 'debug' // 'silent', 'error', 'warn', 'info', 'debug'
+                });
+                
+                addLog('Device created, waiting for ready state...', 'info');
+
+                // Device event handlers
+                device.on('ready', () => {
+                    addLog('✅ Device ready!', 'success');
+                    addLog(`Device state: ${device.state}`, 'info');
+                    updateStatus('Ready', 'ready');
+                    callBtn.disabled = false;
+                });
+
+                device.on('error', (error) => {
+                    addLog(`Device error: ${error.message}`, 'error');
+                    addLog(`Error code: ${error.code || 'N/A'}, Error name: ${error.name || 'N/A'}`, 'error');
+                    console.error('Twilio Device Error:', error);
+                    updateStatus('Device Error', 'error');
+                    callBtn.disabled = true;
+                });
+
+                device.on('incoming', (connection) => {
+                    addLog('Incoming call received', 'info');
+                    connection.accept();
+                });
+
+                device.on('offline', () => {
+                    addLog('Device offline', 'error');
+                    updateStatus('Offline', 'error');
+                    callBtn.disabled = true;
+                });
+
+                device.on('tokenWillExpire', async () => {
+                    addLog('Token expiring, refreshing...', 'info');
+                    const newToken = await getToken();
+                    device.updateToken(newToken);
+                    addLog('Token refreshed', 'success');
+                });
+
+            } catch (error) {
+                addLog(`Failed to initialize device: ${error.message}`, 'error');
+                updateStatus('Initialization Error', 'error');
+            }
+        }
+
+        // Make a call
+        callBtn.addEventListener('click', async () => {
+            const phoneNumber = phoneInput.value.trim();
+            
+            if (!phoneNumber) {
+                addLog('Please enter a phone number', 'error');
+                phoneInput.focus();
+                return;
+            }
+
+            // Validate E.164 format (basic check)
+            if (!phoneNumber.startsWith('+')) {
+                addLog('Phone number should be in E.164 format (e.g., +1234567890)', 'error');
+                phoneInput.focus();
+                return;
+            }
+
+            try {
+                callBtn.disabled = true;
+                updateStatus('Connecting...', 'connecting');
+                addLog(`Initiating call to ${phoneNumber}...`, 'info');
+
+                // Wait for Twilio SDK to be loaded
+                await new Promise((resolve) => {
+                    if (typeof Twilio !== 'undefined') {
+                        resolve();
+                    } else {
+                        waitForTwilio(resolve);
+                    }
+                });
+
+                if (typeof Twilio === 'undefined') {
+                    throw new Error('Twilio SDK failed to load. Please refresh the page.');
+                }
+
+                // Initialize device if not already done
+                if (!device) {
+                    addLog('Device not initialized, initializing now...', 'info');
+                    await initializeDevice();
+                    
+                    // Wait for device to be ready (with timeout)
+                    addLog('Waiting for device to be ready...', 'info');
+                    await new Promise((resolve, reject) => {
+                        const timeout = setTimeout(() => {
+                            reject(new Error('Device did not become ready within 10 seconds'));
+                        }, 10000);
+                        
+                        if (device.state === 'ready') {
+                            clearTimeout(timeout);
+                            addLog('Device is already ready', 'success');
+                            resolve();
+                        } else {
+                            device.once('ready', () => {
+                                clearTimeout(timeout);
+                                addLog('Device is now ready', 'success');
+                                resolve();
+                            });
+                            
+                            device.once('error', (error) => {
+                                clearTimeout(timeout);
+                                reject(error);
+                            });
+                        }
+                    });
+                } else if (device.state !== 'ready') {
+                    addLog(`Device state: ${device.state}, waiting for ready...`, 'info');
+                    await new Promise((resolve, reject) => {
+                        const timeout = setTimeout(() => {
+                            reject(new Error('Device did not become ready within 10 seconds'));
+                        }, 10000);
+                        
+                        device.once('ready', () => {
+                            clearTimeout(timeout);
+                            resolve();
+                        });
+                        
+                        device.once('error', (error) => {
+                            clearTimeout(timeout);
+                            reject(error);
+                        });
+                    });
+                }
+
+                // Check device state before making call
+                if (device.state !== 'ready') {
+                    throw new Error(`Device is not ready. Current state: ${device.state}`);
+                }
+
+                addLog(`Making call to ${phoneNumber}...`, 'info');
+                
+                // Make the call
+                activeConnection = device.connect({
+                    To: phoneNumber
+                });
+                
+                addLog('Call initiated, waiting for connection...', 'info');
+
+                // Connection event handlers
+                activeConnection.on('accept', () => {
+                    addLog('✅ Call accepted!', 'success');
+                    updateStatus('Connected', 'connected');
+                    callBtn.disabled = true;
+                    hangupBtn.disabled = false;
+                });
+
+                activeConnection.on('disconnect', () => {
+                    addLog('Call disconnected', 'info');
+                    updateStatus('Idle', 'idle');
+                    callBtn.disabled = false;
+                    hangupBtn.disabled = true;
+                    activeConnection = null;
+                });
+
+                activeConnection.on('error', (error) => {
+                    addLog(`❌ Call error: ${error.message}`, 'error');
+                    addLog(`Error code: ${error.code || 'N/A'}, Error name: ${error.name || 'N/A'}`, 'error');
+                    console.error('Call Error:', error);
+                    updateStatus('Call Error', 'error');
+                    callBtn.disabled = false;
+                    hangupBtn.disabled = true;
+                    activeConnection = null;
+                });
+
+                activeConnection.on('cancel', () => {
+                    addLog('Call cancelled', 'info');
+                    updateStatus('Cancelled', 'idle');
+                    callBtn.disabled = false;
+                    hangupBtn.disabled = true;
+                    activeConnection = null;
+                });
+                
+                activeConnection.on('ringing', () => {
+                    addLog('Phone is ringing...', 'info');
+                });
+                
+                activeConnection.on('reject', () => {
+                    addLog('Call was rejected', 'error');
+                    updateStatus('Rejected', 'error');
+                    callBtn.disabled = false;
+                    hangupBtn.disabled = true;
+                    activeConnection = null;
+                });
+
+            } catch (error) {
+                addLog(`Failed to make call: ${error.message}`, 'error');
+                updateStatus('Call Failed', 'error');
+                callBtn.disabled = false;
+            }
+        });
+
+        // Hang up call
+        hangupBtn.addEventListener('click', () => {
+            if (activeConnection) {
+                addLog('Hanging up...', 'info');
+                activeConnection.disconnect();
+                activeConnection = null;
+            } else if (device) {
+                addLog('Disconnecting all calls...', 'info');
+                device.disconnectAll();
+            }
+            updateStatus('Idle', 'idle');
+            callBtn.disabled = false;
+            hangupBtn.disabled = true;
+        });
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            addLog('Page loaded. Click "Test Token" or "Call" to begin.', 'info');
+            updateStatus('Ready to Connect', 'idle');
+        });
+
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (device) {
+                device.disconnectAll();
+            }
+        });
+    </script>
+</body>
+</html>
+
