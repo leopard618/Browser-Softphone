@@ -233,8 +233,9 @@
 
     <!-- Twilio Voice SDK v2 -->
     <!-- Note: Voice SDK requires HTTPS or localhost -->
-    <!-- Using SDK loader with multiple fallbacks -->
-    <script src="/twilio-sync.min.js"></script>
+    <!-- IMPORTANT: Use Voice SDK, NOT Sync SDK! -->
+    <!-- Using local SDK (hosted on server - no ORB issues) -->
+    <script src="/twilio.min.js"></script>
 
     <script>
         // Wait for Twilio SDK to load
