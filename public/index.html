@@ -685,7 +685,7 @@
                     }
                     
                     addLog('Call initiated, waiting for connection...', 'info');
-                    addLog(`Connection state: ${activeConnection.status()}`, 'info');
+                    addLog(`Connection state: ${activeConnection.status}`, 'info');
                 } catch (error) {
                     addLog(`❌ Error calling device.connect(): ${error.message}`, 'error');
                     console.error('device.connect() error:', error);
@@ -695,7 +695,8 @@
                 // Connection event handlers
                 activeConnection.on('accept', () => {
                     addLog('✅ Call accepted!', 'success');
-                    addLog(`Connection status: ${activeConnection.status()}`, 'info');
+                    addLog(`Connection status: ${activeConnection.status}`, 'info');
+                    addLog('🎤 You can now speak - your voice will be transmitted', 'success');
                     updateStatus('Connected', 'connected');
                     callBtn.disabled = true;
                     hangupBtn.disabled = false;
@@ -703,12 +704,12 @@
                 
                 activeConnection.on('ringing', () => {
                     addLog('📞 Phone is ringing...', 'info');
-                    addLog(`Connection status: ${activeConnection.status()}`, 'info');
+                    addLog(`Connection status: ${activeConnection.status}`, 'info');
                 });
                 
                 activeConnection.on('reject', () => {
                     addLog('❌ Call was rejected', 'error');
-                    addLog(`Connection status: ${activeConnection.status()}`, 'info');
+                    addLog(`Connection status: ${activeConnection.status}`, 'info');
                     updateStatus('Rejected', 'error');
                     callBtn.disabled = false;
                     hangupBtn.disabled = true;
