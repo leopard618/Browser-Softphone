@@ -676,83 +676,88 @@
                 
                 // Make the call
                 try {
+                    addLog('Calling device.connect()...', 'info');
                     activeConnection = device.connect({
                         To: phoneNumber
                     });
+                    
+                    // Debug what device.connect() returns
+                    console.log('[Call Debug] device.connect() returned:', activeConnection);
+                    console.log('[Call Debug] activeConnection type:', typeof activeConnection);
+                    console.log('[Call Debug] activeConnection constructor:', activeConnection?.constructor?.name);
+                    console.log('[Call Debug] activeConnection methods:', activeConnection ? Object.getOwnPropertyNames(activeConnection) : 'null');
                     
                     if (!activeConnection) {
                         throw new Error('device.connect() returned null - call not initiated');
                     }
                     
+                    // Verify activeConnection is a Call object
+                    if (typeof activeConnection.on !== 'function') {
+                        console.error('[Call Debug] activeConnection does not have .on() method');
+                        console.error('[Call Debug] activeConnection:', activeConnection);
+                        console.error('[Call Debug] activeConnection type:', typeof activeConnection);
+                        console.error('[Call Debug] activeConnection constructor:', activeConnection?.constructor?.name);
+                        console.error('[Call Debug] activeConnection methods:', Object.getOwnPropertyNames(activeConnection));
+                        throw new Error('device.connect() did not return a Call object with event handlers');
+                    }
+                    
                     addLog('Call initiated, waiting for connection...', 'info');
-                    addLog(`Connection state: ${activeConnection.status}`, 'info');
+                    addLog(`Connection state: ${activeConnection.status || 'unknown'}`, 'info');
                 } catch (error) {
                     addLog(`❌ Error calling device.connect(): ${error.message}`, 'error');
                     console.error('device.connect() error:', error);
                     throw error;
                 }
 
-                // Connection event handlers
-                activeConnection.on('accept', () => {
-                    addLog('✅ Call accepted!', 'success');
-                    addLog(`Connection status: ${activeConnection.status}`, 'info');
-                    addLog('🎤 You can now speak - your voice will be transmitted', 'success');
-                    updateStatus('Connected', 'connected');
-                    callBtn.disabled = true;
-                    hangupBtn.disabled = false;
-                });
-                
-                activeConnection.on('ringing', () => {
-                    addLog('📞 Phone is ringing...', 'info');
-                    addLog(`Connection status: ${activeConnection.status}`, 'info');
-                });
-                
-                activeConnection.on('reject', () => {
-                    addLog('❌ Call was rejected', 'error');
-                    addLog(`Connection status: ${activeConnection.status}`, 'info');
-                    updateStatus('Rejected', 'error');
-                    callBtn.disabled = false;
-                    hangupBtn.disabled = true;
-                    activeConnection = null;
-                });
+                // Connection event handlers - attach BEFORE the call might be accepted
+                if (typeof activeConnection.on === 'function') {
+                    activeConnection.on('accept', () => {
+                        addLog('✅ Call accepted!', 'success');
+                        addLog(`Connection status: ${activeConnection.status}`, 'info');
+                        addLog('🎤 You can now speak - your voice will be transmitted', 'success');
+                        updateStatus('Connected', 'connected');
+                        callBtn.disabled = true;
+                        hangupBtn.disabled = false;
+                    });
+                    
+                    activeConnection.on('ringing', () => {
+                        addLog('📞 Phone is ringing...', 'info');
+                        addLog(`Connection status: ${activeConnection.status}`, 'info');
+                    });
+                    
+                    activeConnection.on('reject', () => {
+                        addLog('❌ Call was rejected', 'error');
+                        addLog(`Connection status: ${activeConnection.status}`, 'info');
+                        updateStatus('Rejected', 'error');
+                        callBtn.disabled = false;
+                        hangupBtn.disabled = true;
+                        activeConnection = null;
+                    });
 
-                activeConnection.on('disconnect', () => {
-                    addLog('Call disconnected', 'info');
-                    updateStatus('Idle', 'idle');
-                    callBtn.disabled = false;
-                    hangupBtn.disabled = true;
-                    activeConnection = null;
-                });
+                    activeConnection.on('disconnect', () => {
+                        addLog('Call disconnected', 'info');
+                        updateStatus('Idle', 'idle');
+                        callBtn.disabled = false;
+                        hangupBtn.disabled = true;
+                        activeConnection = null;
+                    });
 
-                activeConnection.on('error', (error) => {
-                    addLog(`❌ Call error: ${error.message}`, 'error');
-                    addLog(`Error code: ${error.code || 'N/A'}, Error name: ${error.name || 'N/A'}`, 'error');
-                    console.error('Call Error:', error);
-                    updateStatus('Call Error', 'error');
-                    callBtn.disabled = false;
-                    hangupBtn.disabled = true;
-                    activeConnection = null;
-                });
-
-                activeConnection.on('cancel', () => {
-                    addLog('Call cancelled', 'info');
-                    updateStatus('Cancelled', 'idle');
-                    callBtn.disabled = false;
-                    hangupBtn.disabled = true;
-                    activeConnection = null;
-                });
-                
-                activeConnection.on('ringing', () => {
-                    addLog('Phone is ringing...', 'info');
-                });
-                
-                activeConnection.on('reject', () => {
-                    addLog('Call was rejected', 'error');
-                    updateStatus('Rejected', 'error');
-                    callBtn.disabled = false;
-                    hangupBtn.disabled = true;
-                    activeConnection = null;
-                });
+                    activeConnection.on('error', (error) => {
+                        addLog(`❌ Call error: ${error.message}`, 'error');
+                        addLog(`Error code: ${error.code || 'N/A'}, Error name: ${error.name || 'N/A'}`, 'error');
+                        console.error('Call Error:', error);
+                        updateStatus('Call Error', 'error');
+                        callBtn.disabled = false;
+                        hangupBtn.disabled = true;
+                        activeConnection = null;
+                    });
+                } else {
+                    addLog('⚠️ Warning: activeConnection does not have .on() method', 'error');
+                    addLog('Call may not have event handlers', 'error');
+                    console.error('[Call Debug] activeConnection:', activeConnection);
+                    console.error('[Call Debug] activeConnection type:', typeof activeConnection);
+                    console.error('[Call Debug] activeConnection methods:', Object.getOwnPropertyNames(activeConnection));
+                }
 
             } catch (error) {
                 addLog(`Failed to make call: ${error.message}`, 'error');
