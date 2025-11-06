@@ -360,14 +360,38 @@
                     console.log('[Device Debug] Device token:', device.token ? 'present' : 'missing');
                     console.log('[Device Debug] Device state:', device.state);
                     
-                    // Check if device has pstream (WebSocket connection)
-                    if (device.pstream) {
-                        addLog('Device has pstream (WebSocket connection)', 'info');
-                        console.log('[Device Debug] PStream status:', device.pstream.status);
-                    } else {
-                        addLog('⚠️ Device has no pstream - WebSocket not initialized', 'error');
-                        addLog('This means device is not attempting to connect', 'error');
+                    // Force device to register/connect
+                    // In Voice SDK v2, device should auto-connect, but let's try explicit registration
+                    if (typeof device.register === 'function') {
+                        addLog('Attempting to explicitly register device...', 'info');
+                        try {
+                            device.register();
+                            addLog('Device register() called', 'info');
+                        } catch (regError) {
+                            addLog(`Register error: ${regError.message}`, 'error');
+                            console.error('Device register error:', regError);
+                        }
                     }
+                    
+                    // Check if device has pstream (WebSocket connection) after a short delay
+                    setTimeout(() => {
+                        if (device) {
+                            if (device.pstream) {
+                                addLog('✅ Device has pstream (WebSocket connection)', 'success');
+                                console.log('[Device Debug] PStream status:', device.pstream.status);
+                                console.log('[Device Debug] PStream transport:', device.pstream.transport);
+                            } else {
+                                addLog('⚠️ Device still has no pstream after initialization', 'error');
+                                addLog('Device may not be attempting to connect', 'error');
+                                addLog('This could indicate a token or SDK issue', 'error');
+                                
+                                // Try to manually trigger connection
+                                if (device.connect) {
+                                    addLog('Device has connect method - trying to trigger connection...', 'info');
+                                }
+                            }
+                        }
+                    }, 1000);
                 } catch (error) {
                     addLog(`❌ Error creating device: ${error.message}`, 'error');
                     console.error('Device creation error:', error);
