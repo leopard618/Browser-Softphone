@@ -124,24 +124,25 @@ app.get('/token', (req, res) => {
         console.log('[TOKEN] Payload grants:', JSON.stringify(payload.grants || {}, null, 2));
         
         if (payload.grants && payload.grants.voice) {
-          const outgoingAppSid = payload.grants.voice.outgoingApplicationSid;
+          // Token structure: voice.outgoing.application_sid (not voice.outgoingApplicationSid)
+          const outgoingAppSid = payload.grants.voice.outgoing?.application_sid || 
+                                  payload.grants.voice.outgoingApplicationSid; // fallback for old format
+          const incomingAllow = payload.grants.voice.incoming?.allow || 
+                               payload.grants.voice.incomingAllow || false;
+          
           console.log('[TOKEN] Token includes VoiceGrant:', {
             outgoingApplicationSid: outgoingAppSid || 'MISSING',
-            incomingAllow: payload.grants.voice.incomingAllow || false
+            incomingAllow: incomingAllow
           });
           
-          // Check if it's in a different format
           if (!outgoingAppSid) {
             console.error('[TOKEN] ❌ ERROR: Token does NOT include outgoingApplicationSid!');
             console.error('[TOKEN] VoiceGrant structure:', JSON.stringify(payload.grants.voice, null, 2));
             console.error('[TOKEN] Device will NOT be able to register without this!');
-            console.error('[TOKEN] Check that TWIML_APP_SID is set correctly in Render environment variables');
-            console.error('[TOKEN] Expected format: APxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
-            console.error('[TOKEN] Current TWIML_APP_SID value:', OUTGOING_APP_SID || 'NOT SET');
-            console.error('[TOKEN] VoiceGrant options used:', JSON.stringify(grantOptions, null, 2));
           } else {
             console.log('[TOKEN] ✅ Token includes outgoingApplicationSid:', outgoingAppSid);
-            console.log('[TOKEN] ✅ Device should be able to register and connect via WebSocket');
+            console.log('[TOKEN] ✅ Token is CORRECT - device should be able to register');
+            console.log('[TOKEN] ✅ If device still not connecting, check WebSocket connection in browser console');
           }
         } else {
           console.error('[TOKEN] ❌ ERROR: Token does NOT include VoiceGrant!');

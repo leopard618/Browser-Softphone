@@ -346,6 +346,7 @@
                 }
                 
                 try {
+                    addLog('Creating Twilio Device with token...', 'info');
                     device = new Twilio.Device(token, {
                         debug: true,
                         logLevel: 'debug' // 'silent', 'error', 'warn', 'info', 'debug'
@@ -353,6 +354,20 @@
                     
                     addLog('Device created, waiting for ready state...', 'info');
                     addLog(`Initial device state: ${device.state}`, 'info');
+                    
+                    // Log device internals for debugging
+                    console.log('[Device Debug] Device object:', device);
+                    console.log('[Device Debug] Device token:', device.token ? 'present' : 'missing');
+                    console.log('[Device Debug] Device state:', device.state);
+                    
+                    // Check if device has pstream (WebSocket connection)
+                    if (device.pstream) {
+                        addLog('Device has pstream (WebSocket connection)', 'info');
+                        console.log('[Device Debug] PStream status:', device.pstream.status);
+                    } else {
+                        addLog('⚠️ Device has no pstream - WebSocket not initialized', 'error');
+                        addLog('This means device is not attempting to connect', 'error');
+                    }
                 } catch (error) {
                     addLog(`❌ Error creating device: ${error.message}`, 'error');
                     console.error('Device creation error:', error);
@@ -425,16 +440,53 @@
                     }
                 }, 1000);
                 
+                // Monitor WebSocket connections
+                let wsConnectionAttempts = 0;
+                const wsCheckInterval = setInterval(() => {
+                    if (device) {
+                        // Check if device has pstream (WebSocket connection)
+                        if (device.pstream) {
+                            wsConnectionAttempts++;
+                            addLog(`WebSocket connection check #${wsConnectionAttempts}`, 'info');
+                            addLog(`PStream status: ${device.pstream.status || 'unknown'}`, 'info');
+                            if (device.pstream.status === 'disconnected') {
+                                addLog('⚠️ WebSocket is disconnected', 'error');
+                                addLog('Check browser console (F12) for WebSocket errors', 'error');
+                            } else if (device.pstream.status === 'connected') {
+                                addLog('✅ WebSocket is connected', 'success');
+                            }
+                        } else {
+                            addLog('⚠️ Device has no pstream (WebSocket connection)', 'error');
+                            addLog('Device may not be attempting to connect', 'error');
+                        }
+                    }
+                }, 3000);
+                
                 // Check for WebSocket connection after 5 seconds
                 setTimeout(() => {
                     if (device && device.state === 'unregistered') {
                         addLog('⚠️ Device still unregistered after 5 seconds', 'error');
-                        addLog('This usually means WebSocket connection to Twilio failed', 'error');
+                        addLog('Token is correct - this is a WebSocket connection issue', 'error');
                         addLog('Check browser console (F12) → Network tab → Filter "WS"', 'error');
                         addLog('Look for connections to wss://chunderw-gll.twilio.com', 'error');
                         addLog('If no WebSocket connection appears, check firewall/proxy settings', 'error');
+                        
+                        // Try to get more info from device
+                        if (device.pstream) {
+                            addLog(`PStream status: ${device.pstream.status}`, 'info');
+                            addLog(`PStream transport: ${device.pstream.transport || 'unknown'}`, 'info');
+                        } else {
+                            addLog('Device has no pstream - WebSocket not initialized', 'error');
+                        }
                     }
                 }, 5000);
+                
+                // Clear WebSocket check interval when device is ready
+                device.once('ready', () => {
+                    clearInterval(wsCheckInterval);
+                });
+                device.once('error', () => clearInterval(wsCheckInterval));
+                device.once('offline', () => clearInterval(wsCheckInterval));
                 
                 // Clear interval when device is ready or errors
                 device.once('ready', () => {
