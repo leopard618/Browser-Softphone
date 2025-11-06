@@ -326,17 +326,27 @@
                 // Create new device instance
                 // Voice SDK v2 initialization
                 addLog('Initializing Twilio Device...', 'info');
-                device = new Twilio.Device(token, {
-                    debug: true,
-                    logLevel: 'debug' // 'silent', 'error', 'warn', 'info', 'debug'
-                });
+                addLog(`Token length: ${token.length} characters`, 'info');
                 
-                addLog('Device created, waiting for ready state...', 'info');
+                try {
+                    device = new Twilio.Device(token, {
+                        debug: true,
+                        logLevel: 'debug' // 'silent', 'error', 'warn', 'info', 'debug'
+                    });
+                    
+                    addLog('Device created, waiting for ready state...', 'info');
+                    addLog(`Initial device state: ${device.state}`, 'info');
+                } catch (error) {
+                    addLog(`❌ Error creating device: ${error.message}`, 'error');
+                    console.error('Device creation error:', error);
+                    throw error;
+                }
 
                 // Device event handlers
                 device.on('ready', () => {
                     addLog('✅ Device ready!', 'success');
                     addLog(`Device state: ${device.state}`, 'info');
+                    addLog(`Device token: ${device.token ? 'present' : 'missing'}`, 'info');
                     updateStatus('Ready', 'ready');
                     callBtn.disabled = false;
                 });
@@ -462,20 +472,47 @@
                 }
 
                 addLog(`Making call to ${phoneNumber}...`, 'info');
+                addLog(`Device state before connect: ${device.state}`, 'info');
                 
                 // Make the call
-                activeConnection = device.connect({
-                    To: phoneNumber
-                });
-                
-                addLog('Call initiated, waiting for connection...', 'info');
+                try {
+                    activeConnection = device.connect({
+                        To: phoneNumber
+                    });
+                    
+                    if (!activeConnection) {
+                        throw new Error('device.connect() returned null - call not initiated');
+                    }
+                    
+                    addLog('Call initiated, waiting for connection...', 'info');
+                    addLog(`Connection state: ${activeConnection.status()}`, 'info');
+                } catch (error) {
+                    addLog(`❌ Error calling device.connect(): ${error.message}`, 'error');
+                    console.error('device.connect() error:', error);
+                    throw error;
+                }
 
                 // Connection event handlers
                 activeConnection.on('accept', () => {
                     addLog('✅ Call accepted!', 'success');
+                    addLog(`Connection status: ${activeConnection.status()}`, 'info');
                     updateStatus('Connected', 'connected');
                     callBtn.disabled = true;
                     hangupBtn.disabled = false;
+                });
+                
+                activeConnection.on('ringing', () => {
+                    addLog('📞 Phone is ringing...', 'info');
+                    addLog(`Connection status: ${activeConnection.status()}`, 'info');
+                });
+                
+                activeConnection.on('reject', () => {
+                    addLog('❌ Call was rejected', 'error');
+                    addLog(`Connection status: ${activeConnection.status()}`, 'info');
+                    updateStatus('Rejected', 'error');
+                    callBtn.disabled = false;
+                    hangupBtn.disabled = true;
+                    activeConnection = null;
                 });
 
                 activeConnection.on('disconnect', () => {
