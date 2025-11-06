@@ -100,6 +100,29 @@ app.get('/token', (req, res) => {
     
     const jwt = token.toJwt();
     
+    // Verify token includes TwiML App SID (decode JWT payload)
+    try {
+      const parts = jwt.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+        if (payload.grants && payload.grants.voice) {
+          console.log('[TOKEN] Token includes VoiceGrant:', {
+            outgoingApplicationSid: payload.grants.voice.outgoingApplicationSid || 'MISSING',
+            incomingAllow: payload.grants.voice.incomingAllow || false
+          });
+          if (!payload.grants.voice.outgoingApplicationSid) {
+            console.warn('[TOKEN] ⚠️  WARNING: Token does NOT include outgoingApplicationSid!');
+            console.warn('[TOKEN] Device will NOT be able to register without this!');
+            console.warn('[TOKEN] Check that TWIML_APP_SID is set in environment variables');
+          } else {
+            console.log('[TOKEN] ✅ Token includes outgoingApplicationSid - device should be able to register');
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[TOKEN] Could not decode token for verification:', e.message);
+    }
+    
     console.log(`[TOKEN] ✅ Generated token successfully for identity: ${identity}`);
     
     res.json({ 

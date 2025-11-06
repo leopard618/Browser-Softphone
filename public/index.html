@@ -372,9 +372,25 @@
                     addLog(`❌ Device error: ${error.message}`, 'error');
                     addLog(`Error code: ${error.code || 'N/A'}, Error name: ${error.name || 'N/A'}`, 'error');
                     addLog(`Error info: ${JSON.stringify(error.info || {})}`, 'error');
+                    addLog('Check browser console (F12) for WebSocket connection errors', 'error');
                     console.error('Twilio Device Error:', error);
                     updateStatus('Device Error', 'error');
                     callBtn.disabled = true;
+                });
+
+                // Add connection state monitoring
+                device.on('registering', () => {
+                    addLog('Device registering with Twilio...', 'info');
+                });
+
+                device.on('registered', () => {
+                    addLog('Device registered with Twilio', 'success');
+                });
+
+                device.on('unregistered', () => {
+                    addLog('Device unregistered from Twilio', 'error');
+                    addLog('This usually means WebSocket connection failed', 'error');
+                    addLog('Check browser console (F12) for WebSocket errors', 'error');
                 });
 
                 device.on('incoming', (connection) => {
@@ -408,6 +424,17 @@
                         currentState = device.state;
                     }
                 }, 1000);
+                
+                // Check for WebSocket connection after 5 seconds
+                setTimeout(() => {
+                    if (device && device.state === 'unregistered') {
+                        addLog('⚠️ Device still unregistered after 5 seconds', 'error');
+                        addLog('This usually means WebSocket connection to Twilio failed', 'error');
+                        addLog('Check browser console (F12) → Network tab → Filter "WS"', 'error');
+                        addLog('Look for connections to wss://chunderw-gll.twilio.com', 'error');
+                        addLog('If no WebSocket connection appears, check firewall/proxy settings', 'error');
+                    }
+                }, 5000);
                 
                 // Clear interval when device is ready or errors
                 device.once('ready', () => {
