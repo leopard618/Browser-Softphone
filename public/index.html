@@ -330,6 +330,21 @@
                 addLog('Initializing Twilio Device...', 'info');
                 addLog(`Token length: ${token.length} characters`, 'info');
                 
+                // Request microphone permissions before initializing device
+                // This helps with audio device enumeration and ensures mic access is available
+                try {
+                    addLog('Requesting microphone permissions...', 'info');
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    // Stop tracks immediately after getting permission (we'll get a new stream when needed)
+                    stream.getTracks().forEach(track => track.stop());
+                    addLog('✅ Microphone access granted', 'success');
+                } catch (micError) {
+                    addLog(`❌ Microphone access denied: ${micError.message}`, 'error');
+                    addLog('Microphone access is required for voice calls', 'error');
+                    updateStatus('Mic Denied', 'error');
+                    throw new Error('Microphone access required to initialize Twilio Device');
+                }
+                
                 try {
                     device = new Twilio.Device(token, {
                         debug: true,
