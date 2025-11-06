@@ -406,6 +406,13 @@
                     updateStatus('Ready', 'ready');
                     callBtn.disabled = false;
                 });
+                
+                // Handle registered state (device is registered but may not be ready yet)
+                device.on('registered', () => {
+                    addLog('✅ Device registered with Twilio', 'success');
+                    addLog(`Device state: ${device.state}`, 'info');
+                    addLog('Waiting for device to become ready...', 'info');
+                });
 
                 device.on('error', (error) => {
                     addLog(`❌ Device error: ${error.message}`, 'error');
@@ -633,8 +640,26 @@
                 }
 
                 // Check device state before making call
-                if (device.state !== 'ready') {
+                // Device can be "registered" or "ready" - both are valid for making calls
+                if (device.state !== 'ready' && device.state !== 'registered') {
                     throw new Error(`Device is not ready. Current state: ${device.state}`);
+                }
+                
+                // If device is registered but not ready, wait a bit for it to become ready
+                if (device.state === 'registered') {
+                    addLog('Device is registered, waiting for ready state...', 'info');
+                    await new Promise((resolve) => {
+                        const timeout = setTimeout(() => {
+                            addLog('Device is registered but not ready yet - proceeding anyway', 'info');
+                            resolve();
+                        }, 2000);
+                        
+                        device.once('ready', () => {
+                            clearTimeout(timeout);
+                            addLog('Device is now ready!', 'success');
+                            resolve();
+                        });
+                    });
                 }
 
                 addLog(`Making call to ${phoneNumber}...`, 'info');
