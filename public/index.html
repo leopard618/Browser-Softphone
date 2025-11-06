@@ -471,24 +471,35 @@
                     }
                 }, 1000);
                 
-                // Monitor WebSocket connections
+                // Monitor WebSocket connections - only log if device is not registered
                 let wsConnectionAttempts = 0;
                 const wsCheckInterval = setInterval(() => {
                     if (device) {
-                        // Check if device has pstream (WebSocket connection)
-                        if (device.pstream) {
-                            wsConnectionAttempts++;
-                            addLog(`WebSocket connection check #${wsConnectionAttempts}`, 'info');
-                            addLog(`PStream status: ${device.pstream.status || 'unknown'}`, 'info');
-                            if (device.pstream.status === 'disconnected') {
-                                addLog('⚠️ WebSocket is disconnected', 'error');
-                                addLog('Check browser console (F12) for WebSocket errors', 'error');
-                            } else if (device.pstream.status === 'connected') {
-                                addLog('✅ WebSocket is connected', 'success');
+                        // Only show warnings if device is not registered
+                        if (device.state !== 'registered' && device.state !== 'ready') {
+                            // Check if device has pstream (WebSocket connection)
+                            if (device.pstream) {
+                                wsConnectionAttempts++;
+                                if (wsConnectionAttempts <= 3) { // Only log first 3 times
+                                    addLog(`WebSocket connection check #${wsConnectionAttempts}`, 'info');
+                                    addLog(`PStream status: ${device.pstream.status || 'unknown'}`, 'info');
+                                }
+                                if (device.pstream.status === 'disconnected') {
+                                    addLog('⚠️ WebSocket is disconnected', 'error');
+                                    addLog('Check browser console (F12) for WebSocket errors', 'error');
+                                } else if (device.pstream.status === 'connected') {
+                                    addLog('✅ WebSocket is connected', 'success');
+                                }
+                            } else {
+                                if (wsConnectionAttempts <= 3) { // Only log first 3 times
+                                    addLog('⚠️ Device has no pstream (WebSocket connection)', 'error');
+                                    addLog('Device may not be attempting to connect', 'error');
+                                }
                             }
-                        } else {
-                            addLog('⚠️ Device has no pstream (WebSocket connection)', 'error');
-                            addLog('Device may not be attempting to connect', 'error');
+                        }
+                        // If device is registered, stop checking (it's working)
+                        if (device.state === 'registered' || device.state === 'ready') {
+                            clearInterval(wsCheckInterval);
                         }
                     }
                 }, 3000);
@@ -752,21 +763,48 @@
                         if (activeConnection) {
                             console.warn('[Call Debug] activeConnection methods:', Object.getOwnPropertyNames(activeConnection));
                             console.warn('[Call Debug] activeConnection prototype:', Object.getOwnPropertyNames(Object.getPrototypeOf(activeConnection)));
+                            // Check if it has status property
+                            console.warn('[Call Debug] activeConnection.status:', activeConnection.status);
+                            console.warn('[Call Debug] activeConnection.isMuted:', activeConnection.isMuted);
+                            console.warn('[Call Debug] activeConnection.parameters:', activeConnection.parameters);
+                        }
+                        
+                        // Also check device.activeCall
+                        console.warn('[Call Debug] device.activeCall:', device?.activeCall);
+                        if (device?.activeCall) {
+                            console.warn('[Call Debug] device.activeCall.status:', device.activeCall.status);
+                            console.warn('[Call Debug] device.activeCall.methods:', Object.getOwnPropertyNames(device.activeCall));
                         }
                         
                         // Try to monitor call status by checking it periodically
+                        // Check both activeConnection and device.activeCall
                         addLog('Monitoring call status...', 'info');
+                        let callConnected = false;
                         const callStatusInterval = setInterval(() => {
-                            if (activeConnection) {
-                                const status = activeConnection.status || 'unknown';
-                                if (status === 'open' || status === 'connected' || status === 'accepted') {
-                                    addLog('✅ Call is connected!', 'success');
-                                    addLog('🎤 You can now speak - your voice will be transmitted', 'success');
-                                    updateStatus('Connected', 'connected');
-                                    callBtn.disabled = true;
-                                    hangupBtn.disabled = false;
-                                    clearInterval(callStatusInterval);
-                                } else if (status === 'closed' || status === 'disconnected') {
+                            // Check device.activeCall first (more reliable)
+                            const currentCall = device?.activeCall || activeConnection;
+                            
+                            if (currentCall) {
+                                // Try different ways to get status
+                                const status = currentCall.status || 
+                                             currentCall.state || 
+                                             (currentCall.isMuted !== undefined ? 'connected' : 'unknown');
+                                
+                                console.log('[Call Status Check] currentCall:', currentCall);
+                                console.log('[Call Status Check] status:', status);
+                                console.log('[Call Status Check] isMuted:', currentCall.isMuted);
+                                
+                                // If we can access isMuted, the call is connected
+                                if (currentCall.isMuted !== undefined || status === 'open' || status === 'connected' || status === 'accepted' || status === 'established') {
+                                    if (!callConnected) {
+                                        addLog('✅ Call is connected!', 'success');
+                                        addLog('🎤 You can now speak - your voice will be transmitted', 'success');
+                                        updateStatus('Connected', 'connected');
+                                        callBtn.disabled = true;
+                                        hangupBtn.disabled = false;
+                                        callConnected = true;
+                                    }
+                                } else if (status === 'closed' || status === 'disconnected' || status === 'ended') {
                                     addLog('Call disconnected', 'info');
                                     updateStatus('Idle', 'idle');
                                     callBtn.disabled = false;
@@ -775,14 +813,22 @@
                                     clearInterval(callStatusInterval);
                                 }
                             } else {
-                                clearInterval(callStatusInterval);
+                                // No active call found
+                                if (callConnected) {
+                                    addLog('Call disconnected', 'info');
+                                    updateStatus('Idle', 'idle');
+                                    callBtn.disabled = false;
+                                    hangupBtn.disabled = true;
+                                    activeConnection = null;
+                                    clearInterval(callStatusInterval);
+                                }
                             }
                         }, 500);
                         
-                        // Clear interval after 30 seconds
+                        // Clear interval after 60 seconds
                         setTimeout(() => {
                             clearInterval(callStatusInterval);
-                        }, 30000);
+                        }, 60000);
                     }
                 } catch (error) {
                     addLog(`❌ Error calling device.connect(): ${error.message}`, 'error');

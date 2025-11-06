@@ -200,10 +200,11 @@ app.post('/twiml/outgoing', (req, res) => {
   console.log(`[TwiML] ✅ Dialing number: ${targetNumber}`);
   console.log(`[TwiML] Using caller ID: ${TWILIO_PHONE_NUMBER || 'default'}`);
   
+  // Connect immediately without Say verb to reduce delay
+  // Note: Twilio trial accounts may still play a message before connecting
   const twiml = `
     <Response>
-      <Say>Connecting your browser call to the phone number now.</Say>
-      <Dial timeout="30" callerId="${TWILIO_PHONE_NUMBER || ''}">
+      <Dial timeout="30" callerId="${TWILIO_PHONE_NUMBER || ''}" action="/twiml/call-status" method="POST">
         <Number>${targetNumber}</Number>
       </Dial>
     </Response>
