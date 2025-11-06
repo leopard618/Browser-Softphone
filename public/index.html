@@ -354,8 +354,9 @@
                 });
 
                 device.on('error', (error) => {
-                    addLog(`Device error: ${error.message}`, 'error');
+                    addLog(`❌ Device error: ${error.message}`, 'error');
                     addLog(`Error code: ${error.code || 'N/A'}, Error name: ${error.name || 'N/A'}`, 'error');
+                    addLog(`Error info: ${JSON.stringify(error.info || {})}`, 'error');
                     console.error('Twilio Device Error:', error);
                     updateStatus('Device Error', 'error');
                     callBtn.disabled = true;
@@ -368,16 +369,38 @@
 
                 device.on('offline', () => {
                     addLog('Device offline', 'error');
+                    addLog(`Device state: ${device.state}`, 'info');
                     updateStatus('Offline', 'error');
                     callBtn.disabled = true;
                 });
 
+                // Track device state changes
                 device.on('tokenWillExpire', async () => {
                     addLog('Token expiring, refreshing...', 'info');
                     const newToken = await getToken();
                     device.updateToken(newToken);
                     addLog('Token refreshed', 'success');
                 });
+
+                // Log all state changes
+                let currentState = device.state;
+                addLog(`Device initial state: ${currentState}`, 'info');
+                
+                // Monitor state changes every second
+                const stateCheckInterval = setInterval(() => {
+                    if (device && device.state !== currentState) {
+                        addLog(`Device state changed: ${currentState} → ${device.state}`, 'info');
+                        currentState = device.state;
+                    }
+                }, 1000);
+                
+                // Clear interval when device is ready or errors
+                device.once('ready', () => {
+                    clearInterval(stateCheckInterval);
+                    addLog('State monitoring stopped - device ready', 'info');
+                });
+                device.once('error', () => clearInterval(stateCheckInterval));
+                device.once('offline', () => clearInterval(stateCheckInterval));
 
             } catch (error) {
                 addLog(`Failed to initialize device: ${error.message}`, 'error');
@@ -425,27 +448,47 @@
                     addLog('Device not initialized, initializing now...', 'info');
                     await initializeDevice();
                     
-                    // Wait for device to be ready (with timeout)
+                    // Wait for device to be ready (with longer timeout)
                     addLog('Waiting for device to be ready...', 'info');
+                    addLog(`Current device state: ${device.state}`, 'info');
                     await new Promise((resolve, reject) => {
                         const timeout = setTimeout(() => {
-                            reject(new Error('Device did not become ready within 10 seconds'));
-                        }, 10000);
+                            addLog(`Device still not ready. Current state: ${device.state}`, 'error');
+                            addLog('This might indicate a network or token issue.', 'error');
+                            addLog('Check browser console (F12) for WebSocket connection errors.', 'error');
+                            reject(new Error(`Device did not become ready within 30 seconds. Current state: ${device.state}`));
+                        }, 30000); // Increased to 30 seconds
                         
                         if (device.state === 'ready') {
                             clearTimeout(timeout);
                             addLog('Device is already ready', 'success');
                             resolve();
                         } else {
+                            // Log state changes while waiting
+                            const stateLogInterval = setInterval(() => {
+                                if (device && device.state) {
+                                    addLog(`Waiting... Device state: ${device.state}`, 'info');
+                                }
+                            }, 5000);
+                            
                             device.once('ready', () => {
+                                clearInterval(stateLogInterval);
                                 clearTimeout(timeout);
                                 addLog('Device is now ready', 'success');
                                 resolve();
                             });
                             
                             device.once('error', (error) => {
+                                clearInterval(stateLogInterval);
                                 clearTimeout(timeout);
+                                addLog(`Device error while waiting: ${error.message}`, 'error');
                                 reject(error);
+                            });
+                            
+                            device.once('offline', () => {
+                                clearInterval(stateLogInterval);
+                                clearTimeout(timeout);
+                                reject(new Error('Device went offline while waiting'));
                             });
                         }
                     });
@@ -453,8 +496,11 @@
                     addLog(`Device state: ${device.state}, waiting for ready...`, 'info');
                     await new Promise((resolve, reject) => {
                         const timeout = setTimeout(() => {
-                            reject(new Error('Device did not become ready within 10 seconds'));
-                        }, 10000);
+                            addLog(`Device still not ready. Current state: ${device.state}`, 'error');
+                            addLog('This might indicate a network or token issue.', 'error');
+                            addLog('Check browser console (F12) for WebSocket connection errors.', 'error');
+                            reject(new Error(`Device did not become ready within 30 seconds. Current state: ${device.state}`));
+                        }, 30000); // Increased to 30 seconds
                         
                         device.once('ready', () => {
                             clearTimeout(timeout);
