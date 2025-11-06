@@ -85,18 +85,26 @@ app.get('/token', (req, res) => {
     });
     
     const grantOptions = {};
-    if (OUTGOING_APP_SID) {
-      grantOptions.outgoingApplicationSid = OUTGOING_APP_SID;
-      console.log('[TOKEN] Using TwiML App SID:', OUTGOING_APP_SID.substring(0, 5) + '...');
+    // Validate and trim TwiML App SID
+    const twimlAppSid = OUTGOING_APP_SID ? OUTGOING_APP_SID.trim() : null;
+    
+    if (twimlAppSid && twimlAppSid.length > 0 && twimlAppSid.startsWith('AP')) {
+      grantOptions.outgoingApplicationSid = twimlAppSid;
+      console.log('[TOKEN] Using TwiML App SID:', twimlAppSid.substring(0, 5) + '...');
+      console.log('[TOKEN] Full TwiML App SID:', twimlAppSid);
     } else {
-      console.warn('[TOKEN] ⚠️  WARNING: TWIML_APP_SID not set in .env file');
+      console.warn('[TOKEN] ⚠️  WARNING: TWIML_APP_SID not set or invalid in environment variables');
+      console.warn('[TOKEN] Current value:', OUTGOING_APP_SID || 'undefined');
       console.warn('[TOKEN] Voice SDK requires a TwiML App to be configured');
-      console.warn('[TOKEN] Set TWIML_APP_SID in your .env file to fix this');
+      console.warn('[TOKEN] Set TWIML_APP_SID in Render environment variables (must start with AP...)');
     }
     
     // VoiceGrant allows the client to make and receive calls
     const voiceGrant = new AccessToken.VoiceGrant(grantOptions);
     token.addGrant(voiceGrant);
+    
+    // Log grant options for debugging
+    console.log('[TOKEN] VoiceGrant options:', JSON.stringify(grantOptions));
     
     const jwt = token.toJwt();
     
@@ -106,17 +114,23 @@ app.get('/token', (req, res) => {
       if (parts.length === 3) {
         const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
         if (payload.grants && payload.grants.voice) {
+          const outgoingAppSid = payload.grants.voice.outgoingApplicationSid;
           console.log('[TOKEN] Token includes VoiceGrant:', {
-            outgoingApplicationSid: payload.grants.voice.outgoingApplicationSid || 'MISSING',
+            outgoingApplicationSid: outgoingAppSid || 'MISSING',
             incomingAllow: payload.grants.voice.incomingAllow || false
           });
-          if (!payload.grants.voice.outgoingApplicationSid) {
-            console.warn('[TOKEN] ⚠️  WARNING: Token does NOT include outgoingApplicationSid!');
-            console.warn('[TOKEN] Device will NOT be able to register without this!');
-            console.warn('[TOKEN] Check that TWIML_APP_SID is set in environment variables');
+          if (!outgoingAppSid) {
+            console.error('[TOKEN] ❌ ERROR: Token does NOT include outgoingApplicationSid!');
+            console.error('[TOKEN] Device will NOT be able to register without this!');
+            console.error('[TOKEN] Check that TWIML_APP_SID is set correctly in Render environment variables');
+            console.error('[TOKEN] Expected format: APxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+            console.error('[TOKEN] Current TWIML_APP_SID value:', OUTGOING_APP_SID || 'NOT SET');
           } else {
-            console.log('[TOKEN] ✅ Token includes outgoingApplicationSid - device should be able to register');
+            console.log('[TOKEN] ✅ Token includes outgoingApplicationSid:', outgoingAppSid);
+            console.log('[TOKEN] ✅ Device should be able to register and connect via WebSocket');
           }
+        } else {
+          console.error('[TOKEN] ❌ ERROR: Token does NOT include VoiceGrant!');
         }
       }
     } catch (e) {
