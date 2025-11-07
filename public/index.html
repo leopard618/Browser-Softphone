@@ -688,148 +688,87 @@
                 // Make the call
                 try {
                     addLog('Calling device.connect()...', 'info');
-                    activeConnection = device.connect({
+                    // device.connect() returns a Promise - we need to await it
+                    const connectionPromise = device.connect({
                         To: phoneNumber
                     });
                     
-                    // Debug what device.connect() returns
-                    console.log('[Call Debug] device.connect() returned:', activeConnection);
-                    console.log('[Call Debug] activeConnection type:', typeof activeConnection);
-                    console.log('[Call Debug] activeConnection constructor:', activeConnection?.constructor?.name);
+                    // Debug what device.connect() returns (the Promise)
+                    console.log('[Call Debug] device.connect() returned Promise:', connectionPromise);
+                    console.log('[Call Debug] Promise type:', typeof connectionPromise);
+                    console.log('[Call Debug] Promise constructor:', connectionPromise?.constructor?.name);
+                    
+                    // Await the promise to get the actual Call object
+                    activeConnection = await connectionPromise;
+                    
+                    // Now activeConnection is the actual Call object
+                    console.log('[Call Debug] Awaited activeConnection (Call object):', activeConnection);
+                    console.log('[Call Debug] Call object type:', typeof activeConnection);
+                    console.log('[Call Debug] Call object constructor:', activeConnection?.constructor?.name);
                     if (activeConnection) {
-                        console.log('[Call Debug] activeConnection methods:', Object.getOwnPropertyNames(activeConnection));
-                        console.log('[Call Debug] activeConnection prototype:', Object.getOwnPropertyNames(Object.getPrototypeOf(activeConnection)));
+                        console.log('[Call Debug] Call object methods:', Object.getOwnPropertyNames(activeConnection));
+                        console.log('[Call Debug] Call object prototype:', Object.getOwnPropertyNames(Object.getPrototypeOf(activeConnection)));
+                        console.log('[Call Debug] Call object status:', activeConnection.status);
+                        console.log('[Call Debug] Call object isMuted:', activeConnection.isMuted);
                     }
                     
                     if (!activeConnection) {
-                        throw new Error('device.connect() returned null - call not initiated');
+                        throw new Error('device.connect() resolved to null - call not initiated');
                     }
                     
                     addLog('Call initiated, waiting for connection...', 'info');
-                    addLog(`Connection state: ${activeConnection.status || 'unknown'}`, 'info');
+                    addLog(`Connection status: ${activeConnection.status || 'unknown'}`, 'info');
                     
-                    // Try to attach event handlers - don't throw error if .on() doesn't exist
-                    // The call might still work even without event handlers
-                    if (typeof activeConnection.on === 'function') {
-                        activeConnection.on('accept', () => {
-                            addLog('✅ Call accepted!', 'success');
-                            addLog(`Connection status: ${activeConnection.status}`, 'info');
-                            addLog('🎤 You can now speak - your voice will be transmitted', 'success');
-                            updateStatus('Connected', 'connected');
-                            callBtn.disabled = true;
-                            hangupBtn.disabled = false;
-                        });
-                        
-                        activeConnection.on('ringing', () => {
-                            addLog('📞 Phone is ringing...', 'info');
-                            addLog(`Connection status: ${activeConnection.status}`, 'info');
-                        });
-                        
-                        activeConnection.on('reject', () => {
-                            addLog('❌ Call was rejected', 'error');
-                            addLog(`Connection status: ${activeConnection.status}`, 'info');
-                            updateStatus('Rejected', 'error');
-                            callBtn.disabled = false;
-                            hangupBtn.disabled = true;
-                            activeConnection = null;
-                        });
+                    // Now attach event handlers to the actual Call object
+                    activeConnection.on('accept', () => {
+                        addLog('✅ Call accepted!', 'success');
+                        addLog(`Connection status: ${activeConnection.status}`, 'info');
+                        addLog('🎤 You can now speak - your voice will be transmitted', 'success');
+                        updateStatus('Connected', 'connected');
+                        callBtn.disabled = true;
+                        hangupBtn.disabled = false;
+                    });
+                    
+                    activeConnection.on('ringing', () => {
+                        addLog('📞 Phone is ringing...', 'info');
+                        addLog(`Connection status: ${activeConnection.status}`, 'info');
+                    });
+                    
+                    activeConnection.on('reject', () => {
+                        addLog('❌ Call was rejected', 'error');
+                        addLog(`Connection status: ${activeConnection.status}`, 'info');
+                        updateStatus('Rejected', 'error');
+                        callBtn.disabled = false;
+                        hangupBtn.disabled = true;
+                        activeConnection = null;
+                    });
 
-                        activeConnection.on('disconnect', () => {
-                            addLog('Call disconnected', 'info');
-                            updateStatus('Idle', 'idle');
-                            callBtn.disabled = false;
-                            hangupBtn.disabled = true;
-                            activeConnection = null;
-                        });
+                    activeConnection.on('disconnect', () => {
+                        addLog('Call disconnected', 'info');
+                        updateStatus('Idle', 'idle');
+                        callBtn.disabled = false;
+                        hangupBtn.disabled = true;
+                        activeConnection = null;
+                    });
 
-                        activeConnection.on('error', (error) => {
-                            addLog(`❌ Call error: ${error.message}`, 'error');
-                            addLog(`Error code: ${error.code || 'N/A'}, Error name: ${error.name || 'N/A'}`, 'error');
-                            console.error('Call Error:', error);
-                            updateStatus('Call Error', 'error');
-                            callBtn.disabled = false;
-                            hangupBtn.disabled = true;
-                            activeConnection = null;
-                        });
-                        
-                        addLog('Event handlers attached to call', 'success');
-                    } else {
-                        // Call object doesn't have .on() method - use device-level events or check status
-                        addLog('⚠️ Call object does not have .on() method - using alternative approach', 'info');
-                        console.warn('[Call Debug] activeConnection does not have .on() method');
-                        console.warn('[Call Debug] activeConnection:', activeConnection);
-                        console.warn('[Call Debug] activeConnection type:', typeof activeConnection);
-                        console.warn('[Call Debug] activeConnection constructor:', activeConnection?.constructor?.name);
-                        if (activeConnection) {
-                            console.warn('[Call Debug] activeConnection methods:', Object.getOwnPropertyNames(activeConnection));
-                            console.warn('[Call Debug] activeConnection prototype:', Object.getOwnPropertyNames(Object.getPrototypeOf(activeConnection)));
-                            // Check if it has status property
-                            console.warn('[Call Debug] activeConnection.status:', activeConnection.status);
-                            console.warn('[Call Debug] activeConnection.isMuted:', activeConnection.isMuted);
-                            console.warn('[Call Debug] activeConnection.parameters:', activeConnection.parameters);
-                        }
-                        
-                        // Also check device.activeCall
-                        console.warn('[Call Debug] device.activeCall:', device?.activeCall);
-                        if (device?.activeCall) {
-                            console.warn('[Call Debug] device.activeCall.status:', device.activeCall.status);
-                            console.warn('[Call Debug] device.activeCall.methods:', Object.getOwnPropertyNames(device.activeCall));
-                        }
-                        
-                        // Try to monitor call status by checking it periodically
-                        // Check both activeConnection and device.activeCall
-                        addLog('Monitoring call status...', 'info');
-                        let callConnected = false;
-                        const callStatusInterval = setInterval(() => {
-                            // Check device.activeCall first (more reliable)
-                            const currentCall = device?.activeCall || activeConnection;
-                            
-                            if (currentCall) {
-                                // Try different ways to get status
-                                const status = currentCall.status || 
-                                             currentCall.state || 
-                                             (currentCall.isMuted !== undefined ? 'connected' : 'unknown');
-                                
-                                console.log('[Call Status Check] currentCall:', currentCall);
-                                console.log('[Call Status Check] status:', status);
-                                console.log('[Call Status Check] isMuted:', currentCall.isMuted);
-                                
-                                // If we can access isMuted, the call is connected
-                                if (currentCall.isMuted !== undefined || status === 'open' || status === 'connected' || status === 'accepted' || status === 'established') {
-                                    if (!callConnected) {
-                                        addLog('✅ Call is connected!', 'success');
-                                        addLog('🎤 You can now speak - your voice will be transmitted', 'success');
-                                        updateStatus('Connected', 'connected');
-                                        callBtn.disabled = true;
-                                        hangupBtn.disabled = false;
-                                        callConnected = true;
-                                    }
-                                } else if (status === 'closed' || status === 'disconnected' || status === 'ended') {
-                                    addLog('Call disconnected', 'info');
-                                    updateStatus('Idle', 'idle');
-                                    callBtn.disabled = false;
-                                    hangupBtn.disabled = true;
-                                    activeConnection = null;
-                                    clearInterval(callStatusInterval);
-                                }
-                            } else {
-                                // No active call found
-                                if (callConnected) {
-                                    addLog('Call disconnected', 'info');
-                                    updateStatus('Idle', 'idle');
-                                    callBtn.disabled = false;
-                                    hangupBtn.disabled = true;
-                                    activeConnection = null;
-                                    clearInterval(callStatusInterval);
-                                }
-                            }
-                        }, 500);
-                        
-                        // Clear interval after 60 seconds
-                        setTimeout(() => {
-                            clearInterval(callStatusInterval);
-                        }, 60000);
+                    activeConnection.on('error', (error) => {
+                        addLog(`❌ Call error: ${error.message}`, 'error');
+                        addLog(`Error code: ${error.code || 'N/A'}, Error name: ${error.name || 'N/A'}`, 'error');
+                        console.error('Call Error:', error);
+                        updateStatus('Call Error', 'error');
+                        callBtn.disabled = false;
+                        hangupBtn.disabled = true;
+                        activeConnection = null;
+                    });
+                    
+                    addLog('Event handlers attached to call', 'success');
+                    
+                    // Also check device.activeCall as a fallback
+                    if (device?.activeCall) {
+                        console.log('[Call Debug] device.activeCall:', device.activeCall);
+                        console.log('[Call Debug] device.activeCall.status:', device.activeCall.status);
                     }
+                    
                 } catch (error) {
                     addLog(`❌ Error calling device.connect(): ${error.message}`, 'error');
                     console.error('device.connect() error:', error);
